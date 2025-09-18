@@ -41,9 +41,16 @@ jobs:
           aws iam remove-role-from-instance-profile \
             --instance-profile-name ec2-flaskapp-profile \
             --role-name ec2-flaskapp-role || true
+
+   
           aws iam delete-instance-profile --instance-profile-name ec2-flaskapp-profile || true
+
+           for policy in $(aws iam list-attached-role-policies --role-name ec2-flaskapp-role --query 'AttachedPolicies[*].PolicyArn' --output text); do
+             aws iam detach-role-policy --role-name ec2-flaskapp-role --policy-arn $policy
+          done
+
+  
           aws iam delete-role --role-name ec2-flaskapp-role || true
 
-      - name: Delete Key Pair
-        run: |
-          aws ec2 delete-key-pair --key-name demokey || true
+
+   
