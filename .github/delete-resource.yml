@@ -1,0 +1,49 @@
+name: Delete AWS Resources
+
+on:
+  workflow_dispatch: # manual trigger
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Delete EC2 instance
+        run: |
+          EC2_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=flask-app" \
+            --query "Reservations[*].Instances[*].InstanceId" \
+            --output text)
+          if [ -n "$EC2_ID" ]; then
+            aws ec2 terminate-instances --instance-ids $EC2_ID
+            aws ec2 wait instance-terminated --instance-ids $EC2_ID
+            echo "EC2 instance $EC2_ID terminated."
+          else
+            echo "No EC2 instance found."
+          fi
+
+      - name: Delete ECR repository
+        run: |
+          aws ecr delete-repository --repository-name flask-app --force || echo "No ECR repo found."
+
+      - name: Delete IAM role and instance profile
+        run: |
+          aws iam remove-role-from-instance-profile \
+            --instance-profile-name ec2-flaskapp-profile \
+            --role-name ec2-flaskapp-role || true
+          aws iam delete-instance-profile --instance-profile-name ec2-flaskapp-profile || true
+          aws iam delete-role --role-name ec2-flaskapp-role || true
+
+      - name: Delete Key Pair
+        run: |
+          aws ec2 delete-key-pair --key-name demokey || true
